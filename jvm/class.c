@@ -246,8 +246,44 @@ hb_get_method_idx (const char * name, java_class_t * cls)
 java_class_t * 
 hb_resolve_class (u2 const_idx, java_class_t * src_cls)
 {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
-    return NULL;
+	HB_INFO("idx = %d, count  = %d, name = %s\n", const_idx, src_cls->const_pool_count, src_cls->name);
+	if(const_idx == 0){
+		return NULL;
+	}
+
+	CONSTANT_Class_info_t* c;
+
+	if (const_idx > src_cls->const_pool_count) {
+		return NULL;
+	}
+
+	if (IS_RESOLVED(src_cls->const_pool[const_idx])) {
+		return (java_class_t*)MASK_RESOLVED_BIT(src_cls->const_pool[const_idx]);
+	}
+
+	if (src_cls->const_pool[const_idx]->tag != CONSTANT_Class) {
+		HB_ERR("Non-Class constant in %s (type = %d)", __func__,
+			src_cls->const_pool[const_idx]->tag);
+		return NULL;
+	}	
+
+	c = (CONSTANT_Class_info_t*)src_cls->const_pool[const_idx];
+	const char * nm = hb_get_const_str(c->name_idx, src_cls);
+	if(!nm){
+		HB_ERR("Class name not found in %s (type = %d)", __func__,
+			c->tag);
+		return NULL;
+	}
+
+	java_class_t * t_cls = hb_get_or_load_class(nm);
+	if(!t_cls){
+		HB_ERR("Class resolution failed %s (name = %s)", __func__, nm);
+		return NULL;
+	}
+
+	src_cls->const_pool[const_idx] = (const_pool_info_t*)MARK_RESOLVED(t_cls);
+
+	return t_cls;
 }
 
 
@@ -343,8 +379,55 @@ hb_resolve_method (u2 const_idx,
 		   java_class_t * src_cls,
 		   java_class_t * target_cls)
 {
-    HB_ERR("%s NOT IMPLEMENTED", __func__);
-    return NULL;
+	HB_INFO("const_idx = %d, src_cls = %p, src_cls = %s", const_idx, src_cls, src_cls->name);
+
+	CONSTANT_Methodref_info_t* mri = NULL;
+	CONSTANT_NameAndType_info_t* nati = NULL;
+	const char * field_nm;
+	const char * field_desc;
+	method_info_t * mref = NULL;
+
+	mri = (CONSTANT_Methodref_info_t*)src_cls->const_pool[const_idx];
+
+	if (mri->tag != CONSTANT_Methodref) {
+		HB_ERR("%s attempt to use non-methodref constant", __func__);
+		return NULL;
+	}
+
+	if (!target_cls) {
+		target_cls = hb_resolve_class(mri->class_idx, src_cls);
+	}
+
+	if (!target_cls) {
+		HB_ERR("Could not resolve class ref in %s", __func__);
+		return NULL;
+	}
+
+	nati = (CONSTANT_NameAndType_info_t*)src_cls->const_pool[mri->name_and_type_idx];
+
+	field_nm   = hb_get_const_str(nati->name_idx, src_cls);
+	field_desc = hb_get_const_str(nati->desc_idx, src_cls);
+
+	for (u1 i = 0; i < target_cls->methods_count; i++) {
+		u2 nidx = target_cls->methods[i].name_idx;
+		u2 didx = target_cls->methods[i].desc_idx;
+		const char * tnm = hb_get_const_str(nidx, target_cls);
+		const char * tds = hb_get_const_str(didx, target_cls);
+
+		if (strcmp(tnm, field_nm) == 0 && strcmp(tds, field_desc) == 0) {
+			mref = &target_cls->methods[i];
+			break;
+		}
+	}
+	
+	if (!mref) {
+		java_class_t * super = hb_get_super_class(target_cls);
+		if (super) {
+			mref = hb_resolve_method(const_idx, src_cls, super);
+		}
+	} 
+
+	return mref;
 }
 
 /* 

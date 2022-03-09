@@ -37,7 +37,7 @@
   <!-- creates classes.jar -->
   <target name="classes.jar" depends ="prepare">
     <mkdir dir="${build.tmp}/classes"/>
-    <javac includeantruntime="false" srcdir="${javasrc}" destdir="${build.tmp}/classes" fork="yes" optimize="on" debug="lines,vars,source" source="1.8" target="1.8"/>
+    <javac includeantruntime="false" srcdir="${javasrc}" destdir="${build.tmp}/classes" fork="yes" optimize="on" debug="lines,vars,source" source="1.8" target="1.8" encoding="iso-8859-1"/>
     <jar destfile="classes.jar" basedir="${build.tmp}/classes" update="false"/>
   </target>
 

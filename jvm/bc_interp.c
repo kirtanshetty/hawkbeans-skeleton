@@ -1647,6 +1647,8 @@ handle_putfield (u1 * bc, java_class_t * cls) {
 	} 
 
 	val_offset = (int)(MASK_RESOLVED_BIT(cls->const_pool[idx]));
+	HB_INFO("idx = %d", idx);
+	HB_INFO("val_offset %d", val_offset);
 	fi = obj->field_infos[val_offset];
 
 	if (fi->acc_flags & ACC_STATIC) {
@@ -1776,15 +1778,75 @@ handle_invokedynamic (u1 * bc, java_class_t * cls) {
 // WRITE ME
 static int
 handle_new (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	java_class_t* target_cls = NULL;
+	obj_ref_t* or = NULL;
+	native_obj_t* aobj = NULL;
+	var_t ret;
+	u2 idx;
+
+	idx = GET_2B_IDX(bc);
+
+	CONSTANT_Class_info_t* ci = (CONSTANT_Class_info_t*)cls->const_pool[idx];
+
+	target_cls = hb_resolve_class(idx, cls);
+	if (!target_cls) {
+		HB_ERR("Could not resolve class ref in %s", __func__);
+		return -1;
+	}
+	// HB_INFO("handle_new: target_cls->name %s", target_cls->name);
+	HB_INFO("handle_new: idx %d", idx);
+
+	or = gc_obj_alloc(target_cls);
+	if (!or) {
+		hb_throw_and_create_excp(EXCP_OOM);
+		return -ESHOULD_BRANCH;
+	}
+
+	aobj = (native_obj_t*)or->heap_ptr;
+	aobj->class = target_cls;
+	ret.obj = or;
+
+	BC_DEBUG("Allocated new array at %p in %s", ret.obj, __func__);
+	push_val(ret);
+
+	return 3;
 }
 
 // WRITE ME
 static int
 handle_newarray (u1 * bc, java_class_t * cls) {
-	HB_ERR("%s NOT IMPLEMENTED", __func__);
-	return -1;
+	// java_class_t * target_cls = NULL;
+	obj_ref_t * oa = NULL;
+	native_obj_t * aobj = NULL;
+	var_t len = pop_val();
+	var_t ret;
+	u1 type = bc[1];
+
+	HB_INFO("handle_newarray: len %d, %d", len, bc[1]);
+
+	if (len.int_val < 0) {
+		hb_throw_and_create_excp(EXCP_NEG_ARR_SIZE);
+		return -ESHOULD_BRANCH;
+	}
+
+	HB_INFO("handle_newarray: type = %d", type);
+
+	// hard coded as bytes for now
+	oa = gc_array_alloc(type, len.int_val);
+
+	if (!oa) {
+		hb_throw_and_create_excp(EXCP_OOM);
+		return -ESHOULD_BRANCH;
+	}
+
+	aobj = (native_obj_t*)oa->heap_ptr;
+	aobj->class = cls;
+	ret.obj = oa;
+
+	BC_DEBUG("Allocated new array at %p in %s", ret.obj, __func__);
+	push_val(ret);
+
+	return 2;
 }
 
 static int
@@ -2015,6 +2077,13 @@ hb_exec_one (jthread_t * t)
     bc_ptr = t->cur_frame->minfo->code_attr->code;
 
     u1 opcode = bc_ptr[t->cur_frame->pc];
+
+	HB_INFO("{PC:%02x} [%s::%s] Encountered OP (0x%02x) (%s)", 
+            t->cur_frame->pc, 
+            hb_get_class_name(cls), 
+            method_nm, 
+            opcode, 
+            mnemonics[opcode]);
 
     BC_DEBUG("{PC:%02x} [%s::%s] Encountered OP (0x%02x) (%s)", 
             t->cur_frame->pc, 
