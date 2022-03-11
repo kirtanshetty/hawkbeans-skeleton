@@ -246,7 +246,7 @@ hb_get_method_idx (const char * name, java_class_t * cls)
 java_class_t * 
 hb_resolve_class (u2 const_idx, java_class_t * src_cls)
 {
-	HB_INFO("idx = %d, count  = %d, name = %s\n", const_idx, src_cls->const_pool_count, src_cls->name);
+	// HB_INFO("idx = %d, count  = %d, name = %s\n", const_idx, src_cls->const_pool_count, src_cls->name);
 	if(const_idx == 0){
 		return NULL;
 	}
@@ -379,7 +379,7 @@ hb_resolve_method (u2 const_idx,
 		   java_class_t * src_cls,
 		   java_class_t * target_cls)
 {
-	HB_INFO("const_idx = %d, src_cls = %p, src_cls = %s", const_idx, src_cls, src_cls->name);
+	// HB_INFO("const_idx = %d, src_cls = %p, src_cls = %s", const_idx, src_cls, src_cls->name);
 
 	CONSTANT_Methodref_info_t* mri = NULL;
 	CONSTANT_NameAndType_info_t* nati = NULL;
